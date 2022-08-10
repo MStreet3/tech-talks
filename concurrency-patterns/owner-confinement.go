@@ -5,10 +5,12 @@ import (
 )
 
 // "channel confinement pattern"
+// forwarder confines a new channel of integers so that it is only
+// accessible (i.e., closeable) within its lexical scope
 func forwarder(data []int) <-chan int {
 	dataCh := make(chan int)
 
-	go func(){
+	go func() {
 		defer close(dataCh)
 		for i := range data {
 			dataCh <- data[i]
@@ -24,7 +26,7 @@ func reader(dataCh <-chan int) {
 	}
 }
 
-func main(){
+func main() {
 	data := []int{1, 2, 3, 4}
 
 	handleData := forwarder(data)

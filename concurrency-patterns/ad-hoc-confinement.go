@@ -21,10 +21,11 @@ func reader(dataCh <-chan int) {
 	}
 }
 
-func main(){
+func main() {
 	data := []int{1, 2, 3, 4}
 	handleData := make(chan int)
 
+	// async call is in main function and not confined to the forwarder
 	go forwarder(handleData, data)
 
 	reader(handleData)
