@@ -29,6 +29,7 @@ func reader(dataCh <-chan int) {
 func main() {
 	data := []int{1, 2, 3, 4}
 
+	// async call is replaced with a sync call that returns a channel
 	handleData := forwarder(data)
 
 	reader(handleData)

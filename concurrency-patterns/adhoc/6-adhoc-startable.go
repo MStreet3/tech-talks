@@ -32,21 +32,21 @@ func (adhoc *adhocStarter) Start() error {
 		return errs.ErrAlreadyStopped
 	}
 
-	start := func() {
-		defer close(adhoc.started)
-
-		isRunning := adhoc.loop(adhoc.quit)
-
-		adhoc.wg.Add(1)
-		go func() {
-			defer adhoc.wg.Done()
-
-			<-isRunning
-		}()
-	}
-
-	adhoc.startOnce.Do(start)
+	adhoc.startOnce.Do(adhoc.start)
 	return nil
+}
+
+func (adhoc *adhocStarter) start() {
+	defer close(adhoc.started)
+
+	isRunning := adhoc.loop(adhoc.quit)
+
+	adhoc.wg.Add(1)
+	go func() {
+		defer adhoc.wg.Done()
+
+		<-isRunning
+	}()
 }
 
 func (adhoc *adhocStarter) Stop() error {
@@ -58,15 +58,14 @@ func (adhoc *adhocStarter) Stop() error {
 		return errs.ErrNotYetStarted
 	}
 
-	stop := func() {
-		defer adhoc.wg.Wait()
-
-		close(adhoc.quit)
-	}
-
-	adhoc.stopOnce.Do(stop)
+	adhoc.stopOnce.Do(adhoc.stop)
 	return nil
+}
 
+func (adhoc *adhocStarter) stop() {
+	defer adhoc.wg.Wait()
+
+	close(adhoc.quit)
 }
 
 func (adhoc *adhocStarter) IsStarted() bool {
