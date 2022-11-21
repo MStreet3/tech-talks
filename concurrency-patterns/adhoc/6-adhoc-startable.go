@@ -1,15 +1,12 @@
-package main
+package adhoc
 
 import (
-	"errors"
+	"conpatterns/entities"
+	"conpatterns/errs"
 	"sync"
 )
 
-var (
-	ErrAlreadyStopped = errors.New("instance is already stopped")
-	ErrAlreadyStarted = errors.New("instance is already started")
-	ErrNotYetStarted  = errors.New("instance is not yet started")
-)
+var _ entities.StartStopper = (*adhocStarter)(nil)
 
 type adhocStarter struct {
 	startOnce sync.Once
@@ -28,11 +25,11 @@ func NewAdhocStartable() *adhocStarter {
 
 func (adhoc *adhocStarter) Start() error {
 	if adhoc.IsStarted() {
-		return ErrAlreadyStarted
+		return errs.ErrAlreadyStarted
 	}
 
 	if adhoc.IsStopped() {
-		return ErrAlreadyStopped
+		return errs.ErrAlreadyStopped
 	}
 
 	start := func() {
@@ -54,11 +51,11 @@ func (adhoc *adhocStarter) Start() error {
 
 func (adhoc *adhocStarter) Stop() error {
 	if adhoc.IsStopped() {
-		return ErrAlreadyStopped
+		return errs.ErrAlreadyStopped
 	}
 
 	if !adhoc.IsStarted() {
-		return ErrNotYetStarted
+		return errs.ErrNotYetStarted
 	}
 
 	stop := func() {

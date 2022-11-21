@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"math/rand"
 	"time"
 )
@@ -23,14 +22,4 @@ func source(stop <-chan struct{}) <-chan int {
 	}()
 
 	return data
-}
-
-func main() {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
-	data := source(ctx.Done())
-	for range data {
-
-	}
 }
