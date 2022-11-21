@@ -1,11 +1,11 @@
-package main
+package adhoc
 
 import (
 	"fmt"
 )
 
-// "ad-hoc confinement" -> panics on channels are controlled by a set of ad-hoc rules or conventions in
-// the repository
+// "ad-hoc confinement" -> panics on channels are controlled by a set of ad-hoc
+// rules or conventions in the repository
 
 // close a closed chanel -> panic
 func forwarder(dataCh chan<- int, data []int) {
