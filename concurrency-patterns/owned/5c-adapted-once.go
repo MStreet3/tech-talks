@@ -16,7 +16,7 @@ import (
 // cannot be closed.
 type StartStopOnceAdapter struct {
 	mu        sync.RWMutex
-	impl      entities.StartStopperFactory
+	impl      entities.StartStopBuilder
 	stop      func() <-chan struct{}
 	startOnce sync.Once
 	stopOnce  sync.Once

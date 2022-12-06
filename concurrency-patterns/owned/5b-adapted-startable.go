@@ -6,7 +6,7 @@ import (
 	"sync"
 )
 
-// An OwnedStarter implementation can be adapted to meet the StartStopper
+// A StartStopBuilder implementation can be adapted to meet the StartStopper
 // interface.
 
 // The MultiStartAdapter object can be started and stopped repeatedly.  Each
@@ -14,13 +14,15 @@ import (
 // to stop will cleanup the goroutine.
 type MultiStartAdapter struct {
 	mu   sync.Mutex
-	impl entities.StartStopperFactory
+	impl entities.StartStopBuilder
 	stop func() <-chan struct{}
 }
 
 var _ entities.StartStopper = (*MultiStartAdapter)(nil)
 
 func (m *MultiStartAdapter) Start() error {
+	// Obtain and hold the adapter's lock to safely access the stop
+	// function.
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -29,13 +31,18 @@ func (m *MultiStartAdapter) Start() error {
 	}
 
 	start, stop := m.impl.Build()
-	m.stop = stop
 	started := start()
 	<-started
+
+	// Set the stop function on the adapter to indicate that it has been
+	// started.
+	m.stop = stop
 	return nil
 }
 
 func (m *MultiStartAdapter) Stop() error {
+	// Obtain and hold the adapter's lock to safely access the stop
+	// function.
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -45,6 +52,9 @@ func (m *MultiStartAdapter) Stop() error {
 
 	stopped := m.stop()
 	<-stopped
+
+	// Unset the stop function on the adapter to indicate that it can
+	// be started again.
 	m.stop = nil
 	return nil
 }
