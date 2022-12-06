@@ -6,38 +6,48 @@ import (
 	"conpatterns/entities"
 )
 
-var _ entities.OwnedStarter = (*ownedStartable)(nil)
+var _ entities.StartStopperFactory = (*ownedStartable)(nil)
 
 type ownedStartable struct {
 }
 
-func (owned *ownedStartable) Build() (start func(), stop func() <-chan struct{}) {
+func (owned *ownedStartable) Build() (start func() <-chan struct{}, stop func() <-chan struct{}) {
 	var (
 		wg        sync.WaitGroup
 		startOnce sync.Once
 		stopOnce  sync.Once
 
-		quit = make(chan struct{})
+		quit    = make(chan struct{})
+		started = make(chan struct{})
+		stopped = make(chan struct{})
 	)
 
-	start = func() {
-		startOnce.Do(func() {
-			isRunning := owned.loop(quit)
+	start = func() <-chan struct{} {
+		// Create a goroutine to initialize startup.  Startup is only
+		// initialized once.
+		go func() {
+			defer close(started)
 
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			startOnce.Do(func() {
+				isRunning := owned.loop(quit)
 
-				<-isRunning
-			}()
-		})
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+
+					<-isRunning
+				}()
+			})
+		}()
+
+		return started
 	}
 
 	stop = func() <-chan struct{} {
-		done := make(chan struct{})
-
+		// Create a goroutine to initiate shutdown.  Shutdown can only
+		// be initiated once.
 		go func() {
-			defer close(done)
+			defer close(stopped)
 
 			stopOnce.Do(func() {
 				defer wg.Wait()
@@ -46,7 +56,7 @@ func (owned *ownedStartable) Build() (start func(), stop func() <-chan struct{})
 			})
 		}()
 
-		return done
+		return stopped
 	}
 
 	return

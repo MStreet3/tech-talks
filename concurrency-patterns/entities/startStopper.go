@@ -13,6 +13,6 @@ type StartStopper interface {
 	Stopper
 }
 
-type OwnedStarter interface {
-	Build() (start func(), stop func() <-chan struct{})
+type StartStopperFactory interface {
+	Build() (start func() <-chan struct{}, stop func() <-chan struct{})
 }

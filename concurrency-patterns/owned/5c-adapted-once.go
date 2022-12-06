@@ -15,7 +15,8 @@ import (
 // nil values of started and stopped are valid, unlike a nil channel which
 // cannot be closed.
 type StartStopOnceAdapter struct {
-	impl      entities.OwnedStarter
+	mu        sync.RWMutex
+	impl      entities.StartStopperFactory
 	stop      func() <-chan struct{}
 	startOnce sync.Once
 	stopOnce  sync.Once
@@ -36,9 +37,13 @@ func (s *StartStopOnceAdapter) Start() error {
 
 	s.startOnce.Do(
 		func() {
+			s.mu.Lock()
+			defer s.mu.Unlock()
+
 			start, stop := s.impl.Build()
 			s.stop = stop
-			start()
+			started := start()
+			<-started
 			s.started.Store(true)
 		})
 	return nil
@@ -55,6 +60,9 @@ func (s *StartStopOnceAdapter) Stop() error {
 
 	s.stopOnce.Do(
 		func() {
+			s.mu.Lock()
+			defer s.mu.Unlock()
+
 			done := s.stop()
 			<-done
 			s.stopped.Store(true)
@@ -64,11 +72,17 @@ func (s *StartStopOnceAdapter) Stop() error {
 }
 
 func (s *StartStopOnceAdapter) IsStarted() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	state := s.started.Load()
 	return state
 }
 
 func (s *StartStopOnceAdapter) IsStopped() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	state := s.stopped.Load()
 	return state
 }
