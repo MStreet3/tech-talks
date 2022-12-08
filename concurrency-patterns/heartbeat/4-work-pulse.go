@@ -1,34 +1,41 @@
-package heartbeat
+package main
 
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"time"
 )
 
-func forwarder(done <-chan struct{}, data []int) (<-chan int, <-chan struct{}) {
+func forwarder(done <-chan struct{}, pulseInterval time.Duration) (<-chan int, <-chan struct{}) {
 	dataCh := make(chan int)
 	heartbeatCh := make(chan struct{}, 1)
 
 	go func() {
 		defer close(dataCh)
-		defer close(heartbeatCh)
 
-		for i := range data {
-			// beat for each unit of work
-			select {
-			case heartbeatCh <- struct{}{}:
-			default:
+		for {
+
+			pulse := time.Tick(pulseInterval)
+
+			var sent bool
+			for !sent {
+				select {
+				case <-done:
+					fmt.Println("forwarder: canceled by parent")
+					return
+				case <-pulse:
+					select {
+					case heartbeatCh <- struct{}{}:
+					default:
+					}
+				case <-time.After(time.Duration(rand.Intn(100)) * time.Millisecond):
+					// send after artificial delay
+					dataCh <- rand.Int()
+					sent = true
+				}
 			}
 
-			select {
-			case <-done:
-				fmt.Println("forwarder: canceled by parent")
-				return
-			case <-time.After(100 * time.Millisecond):
-				// send after artificial delay
-				dataCh <- data[i]
-			}
 		}
 	}()
 
@@ -61,21 +68,35 @@ func reader(done <-chan struct{}, dataCh <-chan int) <-chan struct{} {
 
 func main() {
 	var (
+		interval     = 100 * time.Millisecond
 		ctx, cancel  = context.WithCancel(context.Background())
-		data         = []int{1, 2, 3, 4}
-		dataCh, hbCh = forwarder(ctx.Done(), data)
-		reading      = reader(ctx.Done(), dataCh)
+		dataCh, hbCh = forwarder(ctx.Done(), interval)
+		stopReading  = make(chan struct{})
+		reading      = reader(stopReading, dataCh)
 	)
 
 	// cancel after a set number of beats
 	go func() {
 		defer cancel()
-		for beats := 0; beats < 3; beats++ {
-			<-hbCh
+
+		var count int
+		for {
+			timeout := time.After(2 * interval)
+			select {
+			case <-timeout:
+				fmt.Println("timed out")
+			case <-hbCh:
+				fmt.Println("beat")
+				if count == 5 {
+					close(stopReading)
+				}
+				count++
+			}
 		}
 	}()
 
 	// wait for cancelations
 	<-reading
+	<-ctx.Done()
 	fmt.Println("parent: all routines dead")
 }

@@ -7,26 +7,43 @@ import (
 // "ad-hoc confinement" -> panics on channels are controlled by a set of ad-hoc
 // rules or conventions in the repository
 
-// close a closed chanel -> panic
-func forwarder(dataCh chan<- int, data []int) {
-	defer close(dataCh)
-	for i := range data {
-		dataCh <- data[i]
+// forwarder reads values from src channel and writes them on to the sink
+// channel.  forwarder closes the sink channel once the src channel is empty.
+func forwarder(sink chan<- int, src <-chan int) {
+	defer close(sink)
+
+	for val := range src {
+		sink <- val
 	}
 }
 
-func reader(dataCh <-chan int) {
-	for num := range dataCh {
+// consumer reads values from the src channel and writes them to the standard
+// output.  consumer reads indefinitely until the src channel is closed.
+func consumer(src <-chan int) {
+	for num := range src {
 		fmt.Println(num)
 	}
 }
 
 func main() {
-	data := []int{1, 2, 3, 4}
-	handleData := make(chan int)
+	var (
+		data   = []int{1, 2, 3, 4}
+		source = make(chan int, len(data)) // <1>
+		sink   = make(chan int)
+	)
 
-	// async call is in main function and not confined to the forwarder
-	go forwarder(handleData, data)
+	// Load the source channel with data.
+	for _, val := range data {
+		source <- val
+	}
 
-	reader(handleData)
+	// Launch a goroutine to forward the data from the source channel and
+	// onto the sink channel.  Adhoc convention dictates that only the
+	// forwarder function closes the sink channel.
+	go forwarder(sink, source) // <2>
+
+	// Read all the values from the sink channel.  The reader function requires
+	// the adhoc convention that the input channel is eventually closed
+	// otherwise it would block forever.
+	consumer(sink) // <3>
 }

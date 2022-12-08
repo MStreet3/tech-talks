@@ -1,0 +1,14 @@
+{
+  "folders": [
+	{
+		"path": "../.."
+	},
+	{
+		"path": "../../../sleeping-barber"
+	},
+	{
+		"path": "../../../message-relayer"
+	}
+],
+  "settings": {}
+}

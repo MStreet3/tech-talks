@@ -11,7 +11,7 @@ func source(stop <-chan struct{}) <-chan int {
 	go func() {
 		defer close(data)
 		for {
-			delay := time.Duration(1000*rand.Float64()) * time.Millisecond
+			delay := time.Duration(rand.Intn(1e3)) * time.Millisecond
 			select {
 			case <-stop:
 				return
