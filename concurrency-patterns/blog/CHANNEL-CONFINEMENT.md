@@ -336,7 +336,8 @@ func merge[T any](stop <-chan struct{}, chs ...<-chan any) <-chan any {
 
 func main() {
 	stop := make(chan struct{})
-	done := make(chan struct{})
+	isReading := make(chan struct{})
+	shutdown := make(chan struct{})
 
 	sink1 := identifier(stop, "sink1", forwarder(stop))
 	sink2 := identifier(stop, "sink2", forwarder(stop))
@@ -348,14 +349,16 @@ func main() {
 
 		fmt.Println("stopping the service")
 		close(stop)
-		<-done
+		<-isReading
+		close(shutdown)
 	})
 
 	// Read logs until merged is closed.
 	for log := range merged {
 		fmt.Println(log)
 	}
-	close(done)
+	close(isReading)
+	<-shutdown
 }
 ```
 
