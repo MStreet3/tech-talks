@@ -7,16 +7,45 @@ import (
 	"time"
 )
 
-func forwarder(done <-chan struct{}, pulseInterval time.Duration) (<-chan int, <-chan struct{}) {
+func workPulse(done <-chan struct{}) (<-chan int, <-chan struct{}) {
 	dataCh := make(chan int)
 	heartbeatCh := make(chan struct{}, 1)
+
+	go func() {
+		defer close(dataCh)
+		defer close(heartbeatCh)
+
+		for {
+			select {
+			case <-done:
+				fmt.Println("forwarder: canceled by parent")
+				return
+			case <-time.After(100 * time.Millisecond):
+				// send after artificial delay
+				dataCh <- rand.Int()
+
+				// beat for each unit of work
+				select {
+				case heartbeatCh <- struct{}{}:
+				default:
+				}
+			}
+		}
+	}()
+
+	return dataCh, heartbeatCh
+}
+
+func forwarder(done <-chan struct{}, pulseInterval time.Duration) (<-chan int, <-chan struct{}) {
+	dataCh := make(chan int)
+	heartbeatCh := make(chan struct{})
 
 	go func() {
 		defer close(dataCh)
 
 		for {
 
-			pulse := time.Tick(pulseInterval)
+			pulse := time.Tick(pulseInterval / 2)
 
 			var sent bool
 			for !sent {
@@ -29,7 +58,7 @@ func forwarder(done <-chan struct{}, pulseInterval time.Duration) (<-chan int, <
 					case heartbeatCh <- struct{}{}:
 					default:
 					}
-				case <-time.After(time.Duration(rand.Intn(100)) * time.Millisecond):
+				case <-time.After(pulseInterval * time.Duration(rand.Float64()+1)):
 					// send after artificial delay
 					dataCh <- rand.Int()
 					sent = true
@@ -71,17 +100,19 @@ func main() {
 		interval     = 100 * time.Millisecond
 		ctx, cancel  = context.WithCancel(context.Background())
 		dataCh, hbCh = forwarder(ctx.Done(), interval)
-		stopReading  = make(chan struct{})
-		reading      = reader(stopReading, dataCh)
+
+		// separate reading from forwarding
+		stopReading = make(chan struct{})
+		reading     = reader(stopReading, dataCh)
 	)
 
-	// cancel after a set number of beats
 	go func() {
+		// Cancel the forwarder after a set number of heart beats.
 		defer cancel()
 
 		var count int
 		for {
-			timeout := time.After(2 * interval)
+			timeout := time.After(5 * interval)
 			select {
 			case <-timeout:
 				fmt.Println("timed out")
