@@ -303,52 +303,59 @@ actually agnostic to which logger reports a value first. To handle each received
 log as they arrive we should _fan-in_ the results to a single channel:
 
 ```go
-func merge[T any](stop <-chan struct{}, c1, c2 <-chan T) <-chan T {
-	merged := make(chan T)
+func merge[T any](stop <-chan struct{}, chs ...<-chan any) <-chan any {
+	merged := make(chan any)
+
+	var wg sync.WaitGroup
+
+	wg.Add(len(chs))
+	for _, ch := range chs {
+		ch := ch
+
+		go func() {
+			defer wg.Done()
+			for val := range ch {
+				select {
+				case merged <- val:
+				case <-stop:
+					return
+				}
+			}
+		}()
+	}
 
 	go func() {
 		defer close(merged)
 
-		for {
-			select { // <2>
-			case <-stop:
-				return
-			case val, ok := <-c1:
-				if !ok {
-					continue
-				}
-
-				merged <- val
-			case val, ok := <-c2:
-				if !ok {
-					continue
-				}
-
-				merged <- val
-			}
-		}
-
+		wg.Wait()
 	}()
 
 	return merged
 }
 
+
 func main() {
 	stop := make(chan struct{})
+	done := make(chan struct{})
+
 	sink1 := identifier(stop, "sink1", forwarder(stop))
 	sink2 := identifier(stop, "sink2", forwarder(stop))
+
 	merged := merge(stop, sink1, sink2) // <1>
 
 	time.AfterFunc(5*time.Second, func() {
 		defer fmt.Println("service shutdown complete")
-		defer close(stop)
+
 		fmt.Println("stopping the service")
+		close(stop)
+		<-done
 	})
 
-	// Take five values for each stream.
-	for i := 0; i < 5; i++ {
-		fmt.Println(<-merged)
+	// Read logs until merged is closed.
+	for log := range merged {
+		fmt.Println(log)
 	}
+	close(done)
 }
 ```
 
